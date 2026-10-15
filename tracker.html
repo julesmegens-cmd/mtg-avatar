@@ -147,7 +147,9 @@ $('substats').textContent=total?(owned===total?'Alles compleet! 🌟':(total-own
 $('catstats').innerHTML=Object.entries(by).sort((a,b)=>a[0].localeCompare(b[0],'nl')).map(([name,x])=>'<div class="catstat"><strong>'+esc(name)+'</strong><div class="muted">'+x.owned+' / '+x.total+' · '+Math.round(x.owned/x.total*100)+'%</div><div class="bar"><span style="width:'+Math.round(x.owned/x.total*100)+'%"></span></div></div>').join('')
 }
 
-function imageUrl(c){return 'https://api.scryfall.com/cards/'+encodeURIComponent(c.set.toLowerCase())+'/'+encodeURIComponent(c.num)}
+
+function imageUrl(c){return 'https://api.scryfall.com/cards/'+encodeURIComponent(c.set.toLowerCase())+'/'+encodeURIComponent(String(c.num).replace(/^0+(?=\d)/,''))}
+
 
 function loadImage(c,el){
 if(el.dataset.loading)return;
