@@ -125,37 +125,68 @@ function save(){
 try{localStorage.setItem(storageKey,JSON.stringify(saved))}catch{}
 updateStats()
 }
+
 function updateStats(){
 let total=0,owned=0,by={};
 for(const c of cards){
 by[c.category]??={total:0,owned:0};
-for(const v of variants(c)){
-total++;by[c.category].total++;
-if(has(c,v)){owned++;by[c.category].owned++}
-}}
+total++;
+by[c.category].total++;
+const collected=variants(c).some(v=>has(c,v));
+if(collected){
+owned++;
+by[c.category].owned++;
+}
+}
 const pct=total?Math.round(owned/total*100):0;
 $('percent').textContent=pct+'%';
 $('owned').textContent=owned;
 $('total').textContent=total;
 $('bar').style.width=pct+'%';
-$('substats').textContent=total?(owned===total?'Alles compleet! 🌟':(total-owned)+' uitvoeringen nog te verzamelen'):'Kaartenlijst wordt geladen…';
+$('substats').textContent=total?(owned===total?'Alles compleet! 🌟':(total-owned)+' unieke kaarten nog te verzamelen'):'Kaartenlijst wordt geladen…';
 $('catstats').innerHTML=Object.entries(by).sort((a,b)=>a[0].localeCompare(b[0],'nl')).map(([name,x])=>'<div class="catstat"><strong>'+esc(name)+'</strong><div class="muted">'+x.owned+' / '+x.total+' · '+Math.round(x.owned/x.total*100)+'%</div><div class="bar"><span style="width:'+Math.round(x.owned/x.total*100)+'%"></span></div></div>').join('')
 }
+
 function imageUrl(c){return 'https://api.scryfall.com/cards/'+encodeURIComponent(c.set.toLowerCase())+'/'+encodeURIComponent(c.num)}
+
 function loadImage(c,el){
 if(el.dataset.loading)return;
 el.dataset.loading='1';
-fetch(imageUrl(c)).then(r=>r.ok?r.json():null).then(d=>{
+const showImage=d=>{
 const u=d&&(d.image_uris?.normal||d.card_faces?.[0]?.image_uris?.normal);
-if(u)el.innerHTML='<img loading="lazy" alt="Kaartafbeelding van '+esc(c.name)+'" src="'+u+'">';
-else el.innerHTML='<div class="placeholder">'+esc(c.name)+'</div>'
-}).catch(()=>{el.innerHTML='<div class="placeholder">'+esc(c.name)+'</div>'})
+if(u){
+el.innerHTML='<img loading="lazy" alt="Kaartafbeelding van '+esc(c.name)+'" src="'+u+'">';
+return true;
 }
+return false;
+};
+fetch(imageUrl(c))
+.then(r=>r.ok?r.json():null)
+.then(d=>{
+if(showImage(d))return;
+return fetch('https://api.scryfall.com/cards/named?fuzzy='+encodeURIComponent(c.name))
+.then(r=>r.ok?r.json():null)
+.then(fallback=>{
+if(!showImage(fallback)){
+el.innerHTML='<div class="placeholder">'+esc(c.name)+'</div>';
+}
+});
+})
+.catch(()=>{
+fetch('https://api.scryfall.com/cards/named?fuzzy='+encodeURIComponent(c.name))
+.then(r=>r.ok?r.json():null)
+.then(d=>{
+if(!showImage(d))el.innerHTML='<div class="placeholder">'+esc(c.name)+'</div>';
+})
+.catch(()=>{el.innerHTML='<div class="placeholder">'+esc(c.name)+'</div>'});
+});
+}
+
 function render(){
 const q=$('search').value.trim().toLowerCase(),cat=$('category').value||quickCategory,status=$('status').value;
 const visible=cards.filter(c=>{
 const vs=variants(c),n=vs.filter(v=>has(c,v)).length;
-return(!cat||(c.category===cat||c.set.toLowerCase()===cat.toLowerCase()))&&(!q||(c.name+' '+c.num+' '+c.set+' '+c.category+' '+c.variants.join(' ')).toLowerCase().includes(q))&&(status==='all'||(status==='owned'?n===vs.length:status==='missing'?n===0:n>0&&n<vs.length))
+return(!cat||(c.category===cat||c.set.toLowerCase()===cat.toLowerCase()))&&(!q||(c.name+' '+c.num+' '+c.set+' '+c.category+' '+c.variants.join(' ')).toLowerCase().includes(q))&&(status==='all'||(status==='owned'?n>0:status==='missing'?n===0:n>0&&n<vs.length))
 });
 $('count').textContent=visible.length+' kaartgroepen zichtbaar · '+visible.reduce((n,c)=>n+variants(c).length,0)+' afvinkbare uitvoeringen';
 const root=$('cards');
