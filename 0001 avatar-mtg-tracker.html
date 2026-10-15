@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10151f">
+<title>Avatar MTG • Verzameltracker</title>
+<style>
+:root{color-scheme:dark;--bg:#10151f;--panel:#1b2330;--line:#344155;--text:#f4f6fb;--muted:#aebbd0;--accent:#75d0d1;--gold:#f4ca76}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,sans-serif}
+header{padding:22px 16px 16px;background:linear-gradient(145deg,#172c3b,#151927 70%);border-bottom:1px solid var(--line)}
+.wrap{max-width:1000px;margin:auto}h1{font-size:25px;margin:0 0 4px;letter-spacing:-.5px}header p{margin:0;color:var(--muted)}
+main{padding:14px;max-width:1000px;margin:auto}.stats{background:var(--panel);border:1px solid var(--line);padding:14px;border-radius:16px;margin-bottom:14px}
+.statline{display:flex;justify-content:space-between;gap:8px;align-items:center}.big{font-size:24px;font-weight:750}.muted{color:var(--muted);font-size:13px}
+.bar{height:9px;background:#344155;border-radius:20px;overflow:hidden;margin:10px 0}.bar span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.controls input,.controls select,.controls button{min-width:0;width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit}.controls input{grid-column:1/-1}.controls button{cursor:pointer}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}.pill{padding:7px 10px;border:1px solid var(--line);border-radius:30px;color:var(--muted);background:transparent;cursor:pointer}.pill.active{background:var(--accent);border-color:var(--accent);color:#102027;font-weight:700}
+.count{color:var(--muted);font-size:13px;margin:8px 2px 12px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;min-width:0}
+.art{aspect-ratio:5/3;background:linear-gradient(135deg,#283649,#18212d);display:flex;align-items:center;justify-content:center;overflow:hidden}.art img{width:100%;height:100%;object-fit:contain}.art .placeholder{padding:12px;text-align:center;color:#d5e4ee;font-weight:650}
+.info{padding:10px}.setnum{font-size:11px;color:var(--gold);font-weight:750;letter-spacing:.5px}.name{font-weight:700;line-height:1.25;margin:4px 0 9px;overflow-wrap:anywhere}
+.checks{display:grid;gap:6px}.check{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px}.check input{accent-color:var(--accent);width:17px;height:17px}.check.checked{color:var(--text)}
+.empty{text-align:center;padding:40px 10px;color:var(--muted)}footer{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px}.smallbtn{background:transparent;border:1px solid var(--line);border-radius:9px;padding:8px;color:var(--muted);cursor:pointer}
+@media(min-width:650px){header{padding:28px 24px}main{padding:22px}.controls{grid-template-columns:2fr 1fr 1fr auto}.controls input{grid-column:auto}.cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}}
+</style></head>
+<body>
+<header><div class="wrap"><h1>🌊 Avatar MTG Tracker</h1><p>Jouw Avatar: The Last Airbender-verzameling, kaart voor kaart.</p></div></header>
+<main>
+<section class="stats"><div class="statline"><div><div class="muted">TOTALE VOORTGANG</div><div class="big" id="percent">0%</div></div><div style="text-align:right"><strong id="owned">0</strong><div class="muted">van <span id="total">0</span> uitvoeringen</div></div></div><div class="bar"><span id="bar"></span></div><div class="muted" id="substats">Kaartenlijst wordt geladen…</div></section>
+<div class="controls"><input id="search" placeholder="Zoek kaartnaam of kaartnummer…" autocomplete="off"><select id="set"><option value="">Alle uitgaven</option></select><select id="status"><option value="all">Alles tonen</option><option value="missing">Nog te verzamelen</option><option value="owned">In bezit</option></select><button id="reset">Wis filters</button></div>
+<div class="filters" id="quick"></div><div class="count" id="count">Kaartenlijst laden…</div><section class="cards" id="cards"></section>
+<footer>Voortgang wordt op dit apparaat opgeslagen. Exporteer af en toe een reservekopie. Afbeeldingen worden online opgehaald.</footer>
+<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="smallbtn" id="export">Exporteer voortgang</button><button class="smallbtn" id="import">Importeer voortgang</button><input type="file" id="file" accept="application/json" hidden></div>
+</main>
+<script>
+const DATA_URL='https://raw.githubusercontent.com/julesmegens-cmd/mtg-avatar/main/index.html';
+const storageKey='avatar-mtg-tracker-v3';
+let saved={};try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')}catch{}
+let cards=[],quickSet='',imageCache={};
+const $=id=>document.getElementById(id);
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function has(c,v){return !!saved[c.key+'::'+v]}
+function variants(c){return c.variants.length?c.variants:['Non-foil']}
+function save(){try{localStorage.setItem(storageKey,JSON.stringify(saved))}catch{}updateStats()}
+function updateStats(){let total=0,owned=0;for(const c of cards)for(const v of variants(c)){total++;if(has(c,v))owned++}const pct=total?Math.round(owned/total*100):0;$('percent').textContent=pct+'%';$('owned').textContent=owned;$('total').textContent=total;$('bar').style.width=pct+'%';$('substats').textContent=total?(owned===total?'Helemaal compleet! 🌟':(total-owned)+' uitvoeringen nog te verzamelen'):'Kaartenlijst wordt geladen…'}
+function imageUrl(c){return 'https://api.scryfall.com/cards/named?exact='+encodeURIComponent(c.name)}
+function loadImage(c,el){if(imageCache[c.key]){el.innerHTML='<img loading="lazy" alt="" src="'+imageCache[c.key]+'">';return}fetch(imageUrl(c)).then(r=>r.ok?r.json():null).then(d=>{const u=d&&(d.image_uris?.normal||d.card_faces?.[0]?.image_uris?.normal);if(u){imageCache[c.key]=u;el.innerHTML='<img loading="lazy" alt="Kaartafbeelding" src="'+u+'">'}else el.innerHTML='<div class="placeholder">'+escapeHtml(c.name)+'</div>'}).catch(()=>{el.innerHTML='<div class="placeholder">'+escapeHtml(c.name)+'</div>'})}
+function render(){const q=$('search').value.trim().toLowerCase(),set=$('set').value||quickSet,status=$('status').value;const visible=cards.filter(c=>{const vs=variants(c),n=vs.filter(v=>has(c,v)).length;return(!set||c.set.toLowerCase().includes(set.toLowerCase()))&&(!q||(c.name+' '+c.num+' '+c.set).toLowerCase().includes(q))&&(status==='all'||(status==='owned'?n===vs.length:n<vs.length))});$('count').textContent=visible.length+' kaarten zichtbaar';const root=$('cards');root.innerHTML='';if(!visible.length){root.innerHTML='<div class="empty">'+(cards.length?'Geen kaarten gevonden. Probeer een andere zoekterm of filter.':'De kaartenlijst kon niet worden geladen. Controleer je internetverbinding.')+'</div>';return}for(const c of visible){const el=document.createElement('article');el.className='card';el.innerHTML='<div class="art"><div class="placeholder">'+escapeHtml(c.name)+'</div></div><div class="info"><div class="setnum">'+escapeHtml(c.set)+' · #'+escapeHtml(c.num)+'</div><div class="name">'+escapeHtml(c.name)+'</div><div class="checks">'+variants(c).map(v=>'<label class="check '+(has(c,v)?'checked':'')+'"><input type="checkbox" data-key="'+escapeHtml(c.key)+'" data-v="'+escapeHtml(v)+'" '+(has(c,v)?'checked':'')+'> '+escapeHtml(v)+'</label>').join('')+'</div></div>';loadImage(c,el.querySelector('.art'));root.append(el)}}
+function setupFilters(){const sets=[...new Set(cards.map(c=>c.set))].sort();$('set').innerHTML='<option value="">Alle uitgaven</option>'+sets.map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join('');$('quick').innerHTML=['Alle','TLA','TLE','Secret Lair','Tokens','Art Series','Promo'].map((x,i)=>'<button class="pill '+(i===0?'active':'')+'" data-set="'+(i===0?'':x)+'">'+x+'</button>').join('')}
+async function start(){try{const res=await fetch(DATA_URL);if(!res.ok)throw Error('Kon GitHub-bestand niet openen');const text=await res.text();const m=text.match(/const data\\s*=\\s*(\\[[\\s\\S]*?\\]);/);if(!m)throw Error('Kaartenlijst niet gevonden');const raw=JSON.parse(m[1]);const grouped=new Map();for(const c of raw){const set=String(c[0]||'Overig'),num=String(c[1]||''),name=String(c[2]||'Onbekende kaart'),variant=String(c[3]||'Non-foil'),key=[set,num,name].join('|');if(!grouped.has(key))grouped.set(key,{key,set,num,name,variants:[]});const item=grouped.get(key);if(!item.variants.includes(variant))item.variants.push(variant)}cards=[...grouped.values()];setupFilters();updateStats();render()}catch(e){$('substats').textContent='Laden mislukt: '+e.message;$('count').textContent='Kaartenlijst niet geladen';$('cards').innerHTML='<div class="empty">De kaartendatabase kon niet worden opgehaald. Open deze website via internet en probeer opnieuw.</div>'}}
+$('quick').addEventListener('click',e=>{const b=e.target.closest('button[data-set]');if(!b)return;quickSet=b.dataset.set;$('set').value='';document.querySelectorAll('.pill').forEach(x=>x.classList.toggle('active',x===b));render()});
+$('cards').addEventListener('change',e=>{const i=e.target;if(i.type!=='checkbox')return;const k=i.dataset.key+'::'+i.dataset.v;if(i.checked)saved[k]=true;else delete saved[k];save();i.closest('label').classList.toggle('checked',i.checked)});
+$('search').addEventListener('input',render);$('set').addEventListener('change',()=>{quickSet='';document.querySelectorAll('.pill').forEach(x=>x.classList.toggle('active',x.dataset.set===''));render()});$('status').addEventListener('change',render);$('reset').addEventListener('click',()=>{$('search').value='';$('set').value='';$('status').value='all';quickSet='';document.querySelectorAll('.pill').forEach(x=>x.classList.toggle('active',x.dataset.set===''));render()});
+$('export').addEventListener('click',()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(saved,null,2)],{type:'application/json'}));a.download='avatar-mtg-voortgang.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+$('import').addEventListener('click',()=>$('file').click());$('file').addEventListener('change',async e=>{try{const obj=JSON.parse(await e.target.files[0].text());if(!obj||typeof obj!=='object'||Array.isArray(obj))throw 0;saved=obj;save();render();alert('Voortgang geïmporteerd.')}catch{alert('Dit bestand kon niet worden geïmporteerd.')}e.target.value=''});
+start();
+</script></body></html>
